@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RICH client</title>
+<style>
+
+body {
+  color: #4d4e53;
+  font-family: "Helvetica Neue", Helvetica, sans-serif;
+}
+
+iframe {
+  border: none;
+  width: 100%;
+}
+
+iframe[data-fullscreen] {
+  position: fixed;
+  left: 0;
+  top: 0;
+  height: 100vh;
+  z-index: 99;
+  background-color: white;
+}
+
+</style>
+<script>
+
+/*
+ * Copyright 2016 Twincl Inc.
+ * MIT License
+ *
+ * Sample RICH Client
+ */
+
+window.onmessage = _onMessage;
+
+function _onMessage(event) {
+  var msg = event.data, data = null, frame, i;
+  if (!msg || typeof(msg) !== 'object') return;
+  for (i = 0; i < window.frames.length; i++) {
+    if (event.source === window.frames[i]) frame = document.getElementsByTagName('iframe')[i];
+  }
+  if (!frame) return;
+
+  switch (msg.command) {
+  case 'init':
+    data = _parseRichSnippets(document.forms[0].elements.snippet.value);
+    break;
+
+  case 'ping':
+    break;
+
+  case 'screen':
+    if (msg.width) frame.setAttribute('width', String(msg.width));
+    if (msg.height) frame.setAttribute('height', String(msg.height));
+    switch (msg.state) {
+    case 'full': frame.setAttribute('data-fullscreen', '1'); break;
+    case 'normal': frame.removeAttribute('data-fullscreen'); break;
+    }
+    break;
+
+  default: return;
+  }
+
+  frame.contentWindow.postMessage({_id: msg._id, data: data}, '*');
+}
+
+var ParamsRegex = /(\*?)([\w-]+)=(?:('[^']*'|"[^"]*")|(\S+))(?:\s|$)/g;
+
+function _parseRichSnippets(text) {
+  var start = text.slice(0, 2) === '> ' ? 0 : text.indexOf('\n> ');
+  var result = {items: start < 0 ? [{data: text}] : []};
+  var globalParam = {};
+  for (var i = 0; start >= 0; i++) {
+    start += 2;
+    var end = text.indexOf('\n', start);
+    var line = text.slice(start, end >= 0 ? end : text.length).trim();
+    var nextStart = text.indexOf('\n> ', end);
+    var item = result.items[i] = {};
+    var match;
+    while ((match = ParamsRegex.exec(line)) !== null) {
+      (match[1] ? globalParam : item)[match[2]] = match[3] ? match[3].slice(1, -1) : match[4];
+    }
+    item.data = text.slice(end + 1, nextStart >= 0 ? nextStart : text.length);
+    if (item.label) result[item.label] = item;
+    start = nextStart;
+  }
+  result.lang = document.documentElement.lang;
+  result.item = result.items[0];
+  result.items.forEach(o => Object.assign(o, globalParam));
+  return result;
+}
+
+// RICH Player Demo
+
+var playerData = [
+  {
+    url: 'https://rich-simple-quiz.storage.googleapis.com/simple-quiz.html',
+    snippet: '> answer="Alpha Centauri"\nWhat is the closest star system to our Solar System?\n\n> choice=2\nWhich planet is bigger than the others?\n- Mars\n- Earth\n- Venus\n'
+  }, {
+    url: 'https://arthurtw.github.io/tic-tac-toe/',
+    snippet: '> play=o maxbutton=1\n...\n.x.\n...\n'
+  }, {
+    url: 'https://rich-go-quiz.storage.googleapis.com/go-quiz.html',
+    snippet: '> cut=0/11/12/0\n(;GM[1]FF[4]SZ[19]HA[0]KM[0]AB[bb][cb][db][bc][bd]AW[eb][cc][dc][fc][be][ce][de]C[Black to live.](;B[da]WV[];W[ba](;B[ad];W[ab]C[Wrong.])(;B[aa];W[ab];B[ac];W[aa]C[Wrong.])(;B[ab];W[ad]C[Wrong.])(;B[ac];W[aa]C[Wrong.]))(;B[ad]WV[];W[ab](;B[da];W[ba]C[Wrong.])(;B[ba];W[da]C[Wrong.])(;B[aa];W[ba];B[ca];W[aa]C[Wrong.])(;B[ca];W[aa]C[Wrong.]))(;B[aa];W[da];B[ca];W[ad];B[ac]C[Correct.]))'
+  }
+];
+
+function runRichPlayer() {
+  var elem = document.getElementById('content');
+  var url = document.forms[0].elements.url.value;
+  elem.innerHTML = '<iframe src="' + url +
+    '" sandbox="allow-scripts allow-same-origin" scrolling="no"></iframe>';
+}
+
+function setPlayerData(i) {
+  var elements = document.forms[0].elements;
+  elements.url.value = playerData[i].url;
+  elements.snippet.value = playerData[i].snippet;
+}
+
+</script>
+</head>
+<body onload="setPlayerData(0)">
+<h2>Sample RICH Client</h2>
+<form>
+  <p>RICH Player URL:<br><input type="text" name="url" size="80" value=""></p>
+  <p>RICH Snippet:<br><textarea name="snippet" rows="10" cols="80"></textarea></p>
+  <p>
+    <select name="player" onchange="setPlayerData(this.selectedIndex)">
+      <option>Simple quiz</option>
+      <option>Tic-tac-toe</option>
+      <option>Go game quiz</option>
+    </select>
+  </p>
+  <p><input type="button" name="play" value="Play" onclick="runRichPlayer()"></p>
+</form>
+<hr><div id="content">[iframe placeholder]</div><hr>
+</body>
+</html>
+
